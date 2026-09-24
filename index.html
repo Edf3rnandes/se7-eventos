@@ -1223,13 +1223,16 @@ const PHASE_LABELS = {
   // Rótulos do novo modelo "chaveador" (N=8-30, ver buildBracket()/seedOrder()) —
   // repescagem cruzada com final em quatro (semifinais cruzadas + 3º lugar + final).
   "Preliminar":"Preliminar",
-  "16-avos":"16-avos de final",
-  "Oitavas":"Oitavas de final",
-  "Quartas":"Quartas de final",
-  // Ed, 24/09: essa rodada (a última da chave dos vencedores sozinha, antes
-  // de cruzar com a repescagem) não é a semifinal de verdade — o vencedor
-  // ainda enfrenta a semifinal cruzada antes da Final. Renomeada pra não
-  // duplicar "semifinal" com "Semifinais cruzadas" (essa sim é a de verdade).
+  // Ed, 24/09 (e correção no mesmo dia — "com 17 times repetiu o quartas"):
+  // nenhuma rodada da chave dos vencedores sozinha é a semifinal de
+  // verdade — o vencedor sempre ainda enfrenta a semifinal cruzada antes da
+  // Final. Só a ÚLTIMA rodada (a que alimenta essa semifinal cruzada) é
+  // "quartas de final da chave"; cada rodada antes dela sobe um degrau na
+  // escada (oitavas -> 16-avos -> 32-avos), pra não duplicar "quartas" nem
+  // "oitavas" quando a chave tem mais rodadas (ver CV_WB_CASCADE_RENAME).
+  "16-avos":"32-avos de final da chave",
+  "Oitavas":"16-avos de final da chave",
+  "Quartas":"Oitavas de final da chave",
   "Semifinais da chave":"Quartas de final da chave",
   "Semifinais cruzadas":"Semifinais cruzadas",
   "3º lugar":"Disputa de 3º lugar",
@@ -7803,12 +7806,16 @@ function shortPhaseChip(f){
   if(f === 'GP ÚNICO' || f === 'GRUPO') return 'Grupo';
   if(f === 'Grupo A' || f === 'Grupo B') return f;
   if(f === 'S/Final') return 'Semifinal';
+  // Ver CV_WB_CASCADE_RENAME: mesma escada, versão curta pro chip.
   if(f === 'Semifinais da chave') return 'Quartas (chave)';
+  if(f === 'Quartas') return 'Oitavas (chave)';
+  if(f === 'Oitavas') return '16-avos (chave)';
+  if(f === '16-avos') return '32-avos (chave)';
   if(f === 'Semifinais cruzadas') return 'Semifinal cruzada';
   if(/^Rodada \d+$/.test(f)) return f.replace('Rodada', 'R.');
   if(/^LB Rodada \d+$/.test(f)) return 'Rep. ' + f.replace('LB Rodada', 'R.');
   if(/^Repescagem (\d+)$/.test(f)) return f.replace('Repescagem', 'Rep.');
-  return f; // "3º/4º", "Final", "5º/6º", "9º/12º", "Preliminar", "Oitavas", etc. are already short
+  return f; // "3º/4º", "Final", "5º/6º", "9º/12º", "Preliminar", etc. are already short
 }
 
 // The colored "chave" chip (Principal / Repescagem) + round text, shown on
@@ -8218,16 +8225,33 @@ const CV_CENTER_FASES = new Set(['Semifinais cruzadas', '3º lugar', 'Final']);
 const CV_DESTAQUE_FASES = new Set(['3º lugar', 'Final', 'Semifinais cruzadas', 'S/Final']);
 function cvIsRepescagem(fase){ return /^Repescagem \d+$/.test(fase); }
 function cvIsDestaque(fase){ return CV_DESTAQUE_FASES.has(fase); }
-// Ed, 24/09: no modelo novo (N=8-30) só existe UMA semifinal de verdade — a
-// cruzada, em "Decisões" — porque só ali o vencedor vai direto pra Final. A
-// última rodada da chave dos vencedores sozinha ('Semifinais da chave')
-// ainda precisa passar por essa semifinal cruzada antes da Final, então é
-// "a fase que antecede a semifinal", ou seja: quartas de final da chave —
-// não semifinal. Renomeado só na exibição (o identificador interno de fase
-// continua 'Semifinais da chave' — usado como chave de agrupamento/coluna
+// Ed, 24/09 (e correção depois, no mesmo dia — "com 17 times repetiu o
+// quartas"): no modelo novo (N=8-30) só existe UMA semifinal de verdade — a
+// cruzada, em "Decisões". A última rodada da chave dos vencedores sozinha
+// ('Semifinais da chave') ainda precisa passar por essa semifinal cruzada
+// antes da Final, então é "a fase que antecede a semifinal": quartas de
+// final da chave — não semifinal. Só renomear ESSA, porém, duplicava
+// "quartas" em chaves com mais rodadas (N=17+ também tem uma rodada
+// 'Quartas' de verdade mais pra trás) — a correção sobe a escada toda um
+// degrau: cada rodada bruta empurra pro nome que viria ANTES dela na
+// contagem oitavas/quartas normal, porque agora só a última conta como
+// "quartas" (a que antecede a semifinal de verdade). Conferido pra todo N
+// de 8 a 30: sempre que 'Quartas' aparece vem seguida de 'Semifinais da
+// chave' (nunca é a rodada final sozinha), e sempre que 'Oitavas' aparece
+// vem seguida de 'Quartas' — por isso dá pra mapear por NOME fixo, sem
+// precisar calcular posição em tempo de execução (diferente da repescagem
+// abaixo, onde o número de blocos varia e a posição importa). Renomeado só
+// na exibição — o identificador interno de fase continua o mesmo ('Quartas',
+// 'Oitavas', 'Semifinais da chave' — usado como chave de agrupamento/coluna
 // em vários lugares; mudar o texto por trás mudaria comportamento demais).
+const CV_WB_CASCADE_RENAME = {
+  'Semifinais da chave': 'Quartas de final da chave',
+  'Quartas': 'Oitavas de final da chave',
+  'Oitavas': '16-avos de final da chave',
+  '16-avos': '32-avos de final da chave',
+};
 function cvWbPhaseDisplayName(fase){
-  return fase === 'Semifinais da chave' ? 'Quartas de final da chave' : fase;
+  return CV_WB_CASCADE_RENAME[fase] || fase;
 }
 // Idem pro lado da repescagem: em vez de numerar sequencialmente do início
 // ("Repescagem 1, 2, 3..."), só os blocos MAIS PRÓXIMOS da virada pra
