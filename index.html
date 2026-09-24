@@ -8271,7 +8271,11 @@ function cvKindOf(fase){
   if(cvIsRepescagem(fase)) return 'lb';
   return 'wb';
 }
-const BW_CV = 170, BH_CV = 66, PITCH_CV = 86, COL_CV = 202, PAD_CV = 16, TOP_CV = 40, MINGAP_CV = 240, MINROW_CV = BH_CV + 14;
+// BW_CV alargado (Ed, 24/09: "não dá pra ver o nome dos times, adapte pra
+// caber todo") — 170px cortava nomes comuns ("Cabo Branco Seg-Qua-Sex",
+// "Altiplano Seg-Qua-Sex +2") na metade. COL_CV sobe a mesma diferença
+// (+60px) pra manter o mesmo respiro entre colunas de sempre (32px).
+const BW_CV = 230, BH_CV = 66, PITCH_CV = 86, COL_CV = 262, PAD_CV = 16, TOP_CV = 40, MINGAP_CV = 240, MINROW_CV = BH_CV + 14;
 
 function computeTreeCanvasNovo(chave){
   const games = (BRACKETS[chave.numTimes] || []).slice().sort((a,b) => a.num - b.num);
