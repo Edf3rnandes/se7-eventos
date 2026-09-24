@@ -406,7 +406,10 @@ input[type=number]{text-align:center;}
 }
 .tree-team-row:first-child{border-bottom:1px solid var(--border);}
 .tree-team-row.win{color:var(--primary-dark); font-weight:800;}
-.tree-tname{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;}
+/* Ed, 24/09: nomes de time sempre em negrito na árvore (antes só o vencedor,
+   via .tree-team-row.win, ficava em 800 — os demais ficavam no 600 herdado
+   de .tree-team-row). */
+.tree-tname{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; font-weight:800;}
 .tree-score{font-size:11px; font-weight:800; color:var(--muted2); flex:none;}
 .tree-team-row.win .tree-score{color:var(--primary-dark);}
 /* Semifinal — the one wide, two-cell box (spec §7.1). Left cell = invicto
@@ -799,7 +802,10 @@ textarea{
 .cv-slot{display:flex; align-items:center; gap:8px; padding:9px; border-top:1px solid var(--cv-line-soft); font-size:13.5px; font-weight:500; color:var(--cv-ink);}
 .cv-slot:first-of-type{border-top:0;}
 .cv-slot .mark{width:14px; flex:0 0 14px; text-align:center; font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--cv-line);}
-.cv-slot .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+/* Ed, 24/09: "os nomes dos times em negrito na árvore" — antes só o time
+   vencedor ficava em negrito (.cv-slot.win), os outros ficavam no peso
+   normal (500) do .cv-slot; agora todo nome de time é sempre em negrito. */
+.cv-slot .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700;}
 .cv-slot .sc{font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:12.5px; color:var(--cv-ink-2);}
 .cv-slot.win{background:var(--cv-wb-soft); font-weight:700;}
 .cv-slot.win .mark{color:var(--cv-wb);}
@@ -1220,9 +1226,18 @@ const PHASE_LABELS = {
   "16-avos":"16-avos de final",
   "Oitavas":"Oitavas de final",
   "Quartas":"Quartas de final",
-  "Semifinais da chave":"Semifinais da chave dos vencedores",
+  // Ed, 24/09: essa rodada (a última da chave dos vencedores sozinha, antes
+  // de cruzar com a repescagem) não é a semifinal de verdade — o vencedor
+  // ainda enfrenta a semifinal cruzada antes da Final. Renomeada pra não
+  // duplicar "semifinal" com "Semifinais cruzadas" (essa sim é a de verdade).
+  "Semifinais da chave":"Quartas de final da chave",
   "Semifinais cruzadas":"Semifinais cruzadas",
   "3º lugar":"Disputa de 3º lugar",
+  // Nomes por POSIÇÃO da repescagem (ver cvLbPhaseDisplayName) — precisam
+  // estar aqui como entradas "identidade" pra phaseLabel() não cair no
+  // fallback genérico "Colocação X" quando já vêm traduzidos.
+  "Quartas da repescagem":"Quartas da repescagem",
+  "Oitavas da repescagem":"Oitavas da repescagem",
 };
 function phaseLabel(f){
   if(PHASE_LABELS[f]) return PHASE_LABELS[f];
@@ -5393,12 +5408,18 @@ function renderPubChaveView(id){
   })() : '';
 
   const isNovoPub = treeModeFor(chave) === 'novo';
-  const sections = groupSection + runs.map(run => {
+  // Ver cvLbPhaseDisplayName: só os blocos de repescagem mais próximos da
+  // virada pra Decisões ganham nome de fase (oitavas/quartas) — precisa da
+  // posição de cada bloco de repescagem DENTRO DESSA CHAVE especificamente.
+  const lbRunIdxsPub = runs.map((r,i) => cvIsRepescagem(r.fase) ? i : -1).filter(i => i >= 0);
+  const sections = groupSection + runs.map((run, ridx) => {
     const arr = run.arr;
     const doneCount = arr.filter(g => chave.resultados[g.num] && chave.resultados[g.num].vencedorSlot).length;
     const kindTag = isNovoPub ? `<span class="cv-tag ${cvKindOf(run.fase)}">${cvKindOf(run.fase)==='wb'?'Vencedores':cvKindOf(run.fase)==='lb'?'Repescagem':'Fase final'}</span>` : '';
+    const lbPos = lbRunIdxsPub.indexOf(ridx);
+    const displayFase = lbPos >= 0 ? cvLbPhaseDisplayName(run.fase, lbRunIdxsPub.length - 1 - lbPos) : run.fase;
     return `<div class="phase-section ${isNovoPub?'chaveador-novo':''}">
-      <div class="phase-title"><span>${phaseLabel(run.fase)}</span>${kindTag}<span class="count">${doneCount}/${arr.length}</span></div>
+      <div class="phase-title"><span>${phaseLabel(displayFase)}</span>${kindTag}<span class="count">${doneCount}/${arr.length}</span></div>
       ${arr.map(g => renderPubMatchCard(chave, g)).join('')}
     </div>`;
   }).join('');
@@ -7556,12 +7577,16 @@ function renderChaveView(id){
   })() : '';
 
   const isNovo = treeModeFor(chave) === 'novo';
-  const sections = groupSection + runs.map(run => {
+  // Ver cvLbPhaseDisplayName / comentário equivalente na versão pública acima.
+  const lbRunIdxsOrg = runs.map((r,i) => cvIsRepescagem(r.fase) ? i : -1).filter(i => i >= 0);
+  const sections = groupSection + runs.map((run, ridx) => {
     const arr = run.arr;
     const doneCount = arr.filter(g => chave.resultados[g.num] && chave.resultados[g.num].vencedorSlot).length;
     const kindTag = isNovo ? `<span class="cv-tag ${cvKindOf(run.fase)}">${cvKindOf(run.fase)==='wb'?'Vencedores':cvKindOf(run.fase)==='lb'?'Repescagem':'Fase final'}</span>` : '';
+    const lbPos = lbRunIdxsOrg.indexOf(ridx);
+    const displayFase = lbPos >= 0 ? cvLbPhaseDisplayName(run.fase, lbRunIdxsOrg.length - 1 - lbPos) : run.fase;
     return `<div class="phase-section ${isNovo?'chaveador-novo':''}">
-      <div class="phase-title"><span>${phaseLabel(run.fase)}</span>${kindTag}<span class="count">${doneCount}/${arr.length}</span></div>
+      <div class="phase-title"><span>${phaseLabel(displayFase)}</span>${kindTag}<span class="count">${doneCount}/${arr.length}</span></div>
       ${arr.map(g => renderMatchCard(chave, g)).join('')}
     </div>`;
   }).join('');
@@ -7778,7 +7803,7 @@ function shortPhaseChip(f){
   if(f === 'GP ÚNICO' || f === 'GRUPO') return 'Grupo';
   if(f === 'Grupo A' || f === 'Grupo B') return f;
   if(f === 'S/Final') return 'Semifinal';
-  if(f === 'Semifinais da chave') return 'Semifinal (chave)';
+  if(f === 'Semifinais da chave') return 'Quartas (chave)';
   if(f === 'Semifinais cruzadas') return 'Semifinal cruzada';
   if(/^Rodada \d+$/.test(f)) return f.replace('Rodada', 'R.');
   if(/^LB Rodada \d+$/.test(f)) return 'Rep. ' + f.replace('LB Rodada', 'R.');
@@ -7793,10 +7818,14 @@ function shortPhaseChip(f){
 // sizes with several placement crossovers) shows a neutral chip with the
 // game's real fase name instead, which is more informative for those anyway.
 function chaveBadgeInfo(chave, g){
-  // Destaque (pedido do Ed, 18/09): Final e 3º lugar (chaveamento novo,
-  // N=8-30) ganham um chip dourado próprio na lista de jogos, em vez do
-  // chip neutro cinza que os outros jogos da fase final recebem.
-  if(cvIsDestaque(g.fase)) return { label: (g.fase === 'Final' ? '🏆 Final' : '🥉 3º lugar'), cls:'destaque', round:null };
+  // Destaque (pedido do Ed, 18/09 e 24/09): Final, 3º lugar e a semifinal DE
+  // VERDADE (cruzada, ou S/Final no modelo antigo) ganham um chip dourado
+  // próprio na lista de jogos, em vez do chip neutro cinza que os outros
+  // jogos da fase final recebem.
+  if(cvIsDestaque(g.fase)){
+    const label = g.fase === 'Final' ? '🏆 Final' : g.fase === '3º lugar' ? '🥉 3º lugar' : '🥈 Semifinal';
+    return { label, cls:'destaque', round:null };
+  }
   const bm = computeBracketMeta(chave.numTimes);
   const info = bm.meta[g.num];
   if(bm.isClean && info){
@@ -8179,12 +8208,40 @@ function computeTreeCanvas(chave){
 // lendo direto de BRACKETS[numTimes] (fase/num/a/b) em vez da estrutura
 // abstrata bk.games por chave de string.
 const CV_CENTER_FASES = new Set(['Semifinais cruzadas', '3º lugar', 'Final']);
-// Destaque extra (pedido do Ed, 18/09): dentro da coluna "Decisões", a
-// disputa de 3º lugar e a Final ganham um tratamento visual mais forte que
-// a Semifinal cruzada — são os jogos que decidem colocação de pódio.
-const CV_DESTAQUE_FASES = new Set(['3º lugar', 'Final']);
+// Destaque extra: 3º lugar, Final e a semifinal DE VERDADE (a cruzada, em
+// "Decisões" — ver nota abaixo sobre "Semifinais da chave" NÃO ser semifinal)
+// ganham o mesmo tratamento visual mais forte (borda dourada + sombra, ver
+// .cv-node.destaque) — Ed, 24/09: "aos jogos da semifinal, dê mais destaque
+// a eles" (antes só Final/3º lugar tinham esse destaque, semifinal ficava
+// só com o filete padrão da coluna "Decisões"). 'S/Final' é a semifinal do
+// modelo antigo (chaves menores, N=6/7) — mesmo tratamento por lá.
+const CV_DESTAQUE_FASES = new Set(['3º lugar', 'Final', 'Semifinais cruzadas', 'S/Final']);
 function cvIsRepescagem(fase){ return /^Repescagem \d+$/.test(fase); }
 function cvIsDestaque(fase){ return CV_DESTAQUE_FASES.has(fase); }
+// Ed, 24/09: no modelo novo (N=8-30) só existe UMA semifinal de verdade — a
+// cruzada, em "Decisões" — porque só ali o vencedor vai direto pra Final. A
+// última rodada da chave dos vencedores sozinha ('Semifinais da chave')
+// ainda precisa passar por essa semifinal cruzada antes da Final, então é
+// "a fase que antecede a semifinal", ou seja: quartas de final da chave —
+// não semifinal. Renomeado só na exibição (o identificador interno de fase
+// continua 'Semifinais da chave' — usado como chave de agrupamento/coluna
+// em vários lugares; mudar o texto por trás mudaria comportamento demais).
+function cvWbPhaseDisplayName(fase){
+  return fase === 'Semifinais da chave' ? 'Quartas de final da chave' : fase;
+}
+// Idem pro lado da repescagem: em vez de numerar sequencialmente do início
+// ("Repescagem 1, 2, 3..."), só os blocos MAIS PRÓXIMOS da virada pra
+// Decisões ganham nome de fase (espelhando o lado dos vencedores) — o
+// último bloco (que alimenta a semifinal cruzada) é "quartas da
+// repescagem", o penúltimo é "oitavas da repescagem"; qualquer bloco antes
+// desses continua numerado "Repescagem N" como sempre foi. idxFromEnd conta
+// de trás pra frente a partir do bloco mais próximo de Decisões (0 = esse).
+// Calculado por POSIÇÃO (não por número fixo) pra valer em qualquer N.
+function cvLbPhaseDisplayName(fase, idxFromEnd){
+  if(idxFromEnd === 0) return 'Quartas da repescagem';
+  if(idxFromEnd === 1) return 'Oitavas da repescagem';
+  return fase;
+}
 function cvKindOf(fase){
   if(CV_CENTER_FASES.has(fase)) return 'fi';
   if(cvIsRepescagem(fase)) return 'lb';
@@ -8216,7 +8273,7 @@ function computeTreeCanvasNovo(chave){
   const lbNums = new Set(); lbBlocks.forEach(b => b.nums.forEach(n => lbNums.add(n)));
 
   const col = {}, y = {}, cols = [];
-  wbCols.forEach((c,i) => { c.nums.forEach(n => { col[n] = i; }); cols[i] = c.label; });
+  wbCols.forEach((c,i) => { c.nums.forEach(n => { col[n] = i; }); cols[i] = cvWbPhaseDisplayName(c.label); });
 
   const partial = wbCols.length > 0 && wbCols[0].label === 'Preliminar';
   const baseIdx = partial ? 1 : 0;
@@ -8291,7 +8348,7 @@ function computeTreeCanvasNovo(chave){
 
   lbBlocks.forEach((blk,j) => {
     const c = centerCol + lbBlocks.length - j;
-    cols[c] = blk.label;
+    cols[c] = cvLbPhaseDisplayName(blk.label, lbBlocks.length - 1 - j);
     blk.nums.forEach(n => { col[n] = c; });
   });
 
@@ -8375,14 +8432,23 @@ function treeMatchBoxHtmlNovo(chave, g, top, left, readOnly){
   const slotHtml = (name, has, isWin, isOut, score) => `<div class="${slotCls(has,isWin,isOut)}">
       <span class="mark">${isWin?'✔':(isOut?'—':'·')}</span><span class="nm">${name}</span>${score!=null?'<span class="sc">'+escapeHtml(String(score))+'</span>':''}
     </div>`;
-  // Destaque (pedido do Ed, 18/09): Final e 3º lugar ganham um selo (🏆/🥉)
-  // no lugar do "JOGO NN" e a classe .destaque (borda mais grossa, sombra
-  // dourada — ver CSS .cv-node.destaque), diferenciando dos outros jogos da
-  // coluna "Decisões" (Semifinal cruzada), que só têm o filete dourado
-  // padrão. Fica dentro da mesma barra (cv-gtop) pra não mudar a altura do
-  // card — a posição de cada card na árvore é calculada com altura fixa.
-  const selo = g.fase === 'Final' ? '🏆 FINAL' : (g.fase === '3º lugar' ? '🥉 DISPUTA DE 3º' : '');
-  const gidHtml = selo || ('JOGO ' + String(g.num).padStart(2,'0'));
+  // Destaque (pedido do Ed, 18/09 e 24/09): Final e 3º lugar ganham um selo
+  // (🏆/🥉) no lugar do "JOGO NN"; a semifinal cruzada (a semifinal DE
+  // VERDADE desse modelo — ver cvWbPhaseDisplayName acima) ganha "SEMIFINAL"
+  // JUNTO com o número do jogo, não no lugar dele ("o número do jogo e a
+  // semifinal, com mais ênfase"). Todos esses casos também levam a classe
+  // .destaque (borda mais grossa, sombra dourada — ver CSS .cv-node.destaque).
+  // Fica dentro da mesma barra (cv-gtop) pra não mudar a altura do card — a
+  // posição de cada card na árvore é calculada com altura fixa.
+  const jogoNumHtml = 'JOGO ' + String(g.num).padStart(2,'0');
+  // "SEMIFINAL · J17" (não "JOGO 17" por extenso aqui) pra caber no mesmo
+  // espaço que os selos de Final/3º lugar já usam — Ed: "o número do jogo E
+  // a semifinal, com mais ênfase" (os dois juntos, não um no lugar do outro).
+  const selo = g.fase === 'Final' ? '🏆 FINAL'
+    : g.fase === '3º lugar' ? '🥉 DISPUTA DE 3º'
+    : g.fase === 'Semifinais cruzadas' ? ('🥈 SEMIFINAL · J' + g.num)
+    : '';
+  const gidHtml = selo || jogoNumHtml;
   return `<div class="cv-node ${kind}${destaque?' destaque':''}" style="top:${top}px; left:${left}px; width:${BW_CV}px;" onclick="location.hash='${goHash}'">
     <div class="cv-gtop"><span class="cv-gid">${gidHtml}</span><span class="cv-gnote">${escapeHtml(note)}</span></div>
     ${slotHtml(nameA, hasA, winA, done && hasA && !winA, scoreA)}
