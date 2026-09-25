@@ -516,6 +516,7 @@ input[type=number]{text-align:center;}
 .hero-pills{display:flex; flex-wrap:wrap; gap:6px; padding:10px 14px; max-width:1100px; margin:0 auto;}
 .hero-pill{font-size:12px; font-weight:800; padding:5px 11px; border-radius:9px; background:var(--primary); color:#fff;}
 .hero-pill.open{background:var(--success-bg); color:var(--success);}
+.hero-pill.closed{background:#f1eee2; color:var(--muted2);}
 .cat-day-header{
   font-size:11.5px; font-weight:800; letter-spacing:.06em; color:var(--muted2); text-transform:uppercase;
   margin:14px 0 8px; padding-bottom:6px; border-bottom:1px solid var(--border);
@@ -3668,12 +3669,26 @@ function doAtletaEditarPerfil(){
 }
 function hojeStr(){ return new Date().toISOString().slice(0,10); }
 // Aberto pra inscrição = publicado + tem pelo menos 1 lote cadastrado + o
-// período de algum lote ainda não terminou (ver hint em renderEventoSetup).
+// período de algum lote ainda não terminou (ver hint em renderEventoSetup)
+// + pelo menos UMA categoria de verdade aberta (interruptor da categoria
+// ligado, prazo dela não vencido, e ainda com vaga). Ed, 25/09: "eu já
+// encerrei as inscrições (eu acho) mas ainda aparece lá em cima aberto
+// junto com o botão pra se inscrever" — antes essa função só olhava o
+// evento (gratuito, ou lote com prazo válido), nunca as categorias; fechar
+// cada categoria uma por uma não tinha efeito nenhum aqui, então o botão e
+// o selo "Inscrições abertas" continuavam achando o evento aberto.
+function eventoTemCategoriaAbertaParaInscricao(ev){
+  return categoriasOfEvento(ev.id).some(({ cat, chave }) => {
+    if(!categoriaAbertaParaInscricao(chave)) return false;
+    const vagas = vagasDaCategoria(chave) - (chave.times||[]).filter(t => teamRowHasData(t, chave.modalidade)).length;
+    return vagas > 0;
+  });
+}
 function eventosAbertosParaInscricao(){
   const hoje = hojeStr();
   return loadEventos().filter(ev => ev.publicado === true && (
     ev.inscricaoGratuita === true || ((ev.lotes||[]).length && (ev.lotes||[]).some(l => hoje <= l.fim))
-  ));
+  ) && eventoTemCategoriaAbertaParaInscricao(ev));
 }
 // ---------- Inscrição pública por CATEGORIA (Ed, 18/09, 6ª rodada) ----------
 // Preço/prazo de LOTE continuam no nível do EVENTO (sem mudança) — o que
@@ -5079,13 +5094,21 @@ function diaPadraoVisaoGeral(dias){
 // as duas telas mostrem exatamente a mesma coisa, sem duplicar manutenção.
 function eventoDetalhesBlocosHtml(ev){
   const loteHoje = loteAtivoHoje(ev);
+  // Ed, 25/09: o selo "Inscrições abertas" tinha lógica PRÓPRIA (só olhava
+  // se o evento era gratuito ou tinha lote válido) — igual o bug do botão,
+  // fechar as categorias uma por uma não mudava esse selo. Agora os dois
+  // usam a MESMA checagem (eventoTemCategoriaAbertaParaInscricao), incluindo
+  // categoria/vagas/prazo — se não tiver categoria aberta de verdade, mostra
+  // "Inscrições encerradas" (cinza) em vez de manter o verde "abertas".
+  const inscricaoAberta = eventoTemCategoriaAbertaParaInscricao(ev);
+  const statusPill = `<span class="hero-pill ${inscricaoAberta?'open':'closed'}">${inscricaoAberta?'Inscrições abertas':'Inscrições encerradas'}</span>`;
   const heroPills = ev.inscricaoGratuita ? `<div class="hero-pills">
     <span class="hero-pill">Inscrição gratuita</span>
-    <span class="hero-pill open">Inscrições abertas</span>
+    ${statusPill}
   </div>` : (loteHoje ? `<div class="hero-pills">
     <span class="hero-pill">${formatBRL(loteHoje.valor1a)}/pessoa</span>
     <span class="hero-pill">${formatBRL(loteHoje.valorDemais)} — 2ª inscrição</span>
-    <span class="hero-pill open">Inscrições abertas</span>
+    ${statusPill}
   </div>` : '');
   const banner = ev.fotoUrl ? `<div class="evento-hero-wrap"><img class="evento-hero" src="${ev.fotoUrl}">${heroPills}</div>` : (heroPills ? `<div class="evento-hero-wrap noimg">${heroPills}</div>` : '');
   const periodo = formatPeriodoLong(ev.dataInicio, ev.dataFim);
@@ -5163,16 +5186,21 @@ function renderPubEventoView(eventoId){
   // esse evento e suas categorias) se já estiver logado como atleta.
   const inscreverBtn = eventosAbertosParaInscricao().some(e => e.id === ev.id)
     ? `<button class="btn accent" style="margin:0 0 8px; width:100%;" onclick="irInscreverNoEvento('${ev.id}')">📝 Quero me inscrever nesse evento</button>` : '';
-  // Botões de ação (Ver categorias/Visão geral/Pódio/Ranking da etapa) —
-  // movidos pra DEPOIS dos cards de informação (Ed, 18/09: "podem aparecer
-  // abaixo das informações do evento, da etapa") — antes ficavam logo no
-  // topo, empurrando as informações do evento pra baixo da dobra.
+  // Botões de ação (Visão geral/Pódio/Ranking da etapa) — movidos pra
+  // DEPOIS dos cards de informação (Ed, 18/09: "podem aparecer abaixo das
+  // informações do evento, da etapa"). Ed, 25/09: "tá ficando muito botão
+  // pra clicar, não tá legal pra visão do público" — tirado o "Ver
+  // categorias" (só rolava a tela até a seção de categorias, que já está
+  // bem abaixo na mesma página — redundante) e os 3 links secundários
+  // (antes 3 blocos cheios, um embaixo do outro) virem uma linha só,
+  // compacta, lado a lado.
   const acoesRow = `
       ${inscreverBtn}
-      <button class="btn accent" style="margin:0 0 8px;" onclick="document.getElementById('categoriasSection').scrollIntoView({behavior:'smooth'})">🏆 Ver categorias</button>
-      ${dias.length ? `<button class="btn ghost" style="margin:0 0 8px; width:100%;" onclick="location.hash='/pub/visao-geral/${ev.id}/'+encodeURIComponent('${diaPadraoVisaoGeral(dias)}')">📋 Visão geral ao vivo</button>` : ''}
-      <button class="btn ghost" style="margin:0 0 8px;" onclick="location.hash='/pub/podio/${ev.id}'">🏆 Pódio geral</button>
-      <button class="btn ghost" style="margin:0 0 8px;" onclick="location.hash='/pub/ranking-etapa/${ev.id}'">📊 Ranking da etapa (por atleta/CT/dupla)</button>`;
+      <div style="display:flex; gap:8px; margin:0 0 8px;">
+        ${dias.length ? `<button class="btn ghost small" style="flex:1;" onclick="location.hash='/pub/visao-geral/${ev.id}/'+encodeURIComponent('${diaPadraoVisaoGeral(dias)}')">📋 Visão geral</button>` : ''}
+        <button class="btn ghost small" style="flex:1;" onclick="location.hash='/pub/podio/${ev.id}'">🏆 Pódio</button>
+        <button class="btn ghost small" style="flex:1;" onclick="location.hash='/pub/ranking-etapa/${ev.id}'">📊 Ranking</button>
+      </div>`;
   app.innerHTML = `
     ${header(escapeHtml(ev.nome) + (ev.edicao ? ' <span class="header-edicao">— '+escapeHtml(ev.edicao)+'</span>' : ''), null, '/', '', ev.logoUrl)}
     ${banner}
