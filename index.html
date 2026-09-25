@@ -4933,7 +4933,7 @@ function renderEventoView(eventoId, selectedDia){
           <div class="meta">${horaTag}${chave.numTimes} ${modalidadePlural(chave.modalidade)} • ${st.done}/${st.total} jogos</div>
         </div>
         <div class="cat-actions" onclick="event.stopPropagation()">
-          <button class="btn ghost small" onclick="renameCategoria('${chave.id}')" title="Renomear">✎</button>
+          <button class="btn ghost small" onclick="event.stopPropagation(); location.hash='/editar/${chave.id}'" title="Editar categoria">✎</button>
           <button class="btn ghost small" onclick="duplicateCategoria('${cat.id}')" title="Duplicar">⧉</button>
           ${otherDias.length ? `<select title="Mover para outro dia" onchange="if(this.value) moveCategoriaToDia('${cat.id}', this.value)">
             <option value="">Mover…</option>${moveOptions}
@@ -5119,7 +5119,7 @@ function eventoDetalhesBlocosHtml(ev){
   const infoCard = `<div class="card">
     <div class="card-title">🏆 Informações do Evento</div>
     <div class="info-row"><span class="ico">📅</span><div><div class="ir-label">Data do Evento</div><div class="ir-value">${escapeHtml(periodo)}</div></div></div>
-    ${ev.local ? `<div class="info-row"><span class="ico">📍</span><div><div class="ir-label">Local</div><div class="ir-value">${escapeHtml(ev.local)}</div></div></div>` : ''}
+    ${ev.local ? `<div class="info-row"><span class="ico">📍</span><div><div class="ir-label">Local</div><div class="ir-value"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.local)}" target="_blank" rel="noopener" style="color:inherit; text-decoration:underline;">${escapeHtml(ev.local)}</a></div></div></div>` : ''}
     <div class="section-note">Acompanhamento pelo site — inscrições e dúvidas direto com o organizador.</div>
   </div>`;
   const orgCard = ev.contato ? `<div class="card">
